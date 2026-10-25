@@ -7,7 +7,10 @@ import { useAssistantStore } from '../store/useAssistantStore';
 import {
     findComposeWindows,
     readComposeBodyText,
-    hasAttachmentsPresent
+    hasAttachmentsPresent,
+    replaceEntireComposeBody,
+    setComposeSubject,
+    extractThreadHistory
 } from './gmailDOM';
 import '../styles/globals.css';
 
@@ -15,6 +18,17 @@ const SIDEBAR_ROOT_ID = 'ai-copilot-sidebar-root';
 const SELECTION_ROOT_ID = 'ai-copilot-selection-root';
 
 function initExtension() {
+
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+        if (message?.type !== 'GMAIL_DOM_ACTION') return;
+        switch (message.action) {
+            case 'read': sendResponse(readComposeBodyText()); break;
+            case 'replace': sendResponse(replaceEntireComposeBody(message.text)); break;
+            case 'subject': sendResponse(setComposeSubject(message.text)); break;
+            case 'thread': sendResponse(extractThreadHistory()); break;
+            default: sendResponse(null);
+        }
+    });
 
     let sidebarContainer = document.getElementById(SIDEBAR_ROOT_ID);
     if (!sidebarContainer) {

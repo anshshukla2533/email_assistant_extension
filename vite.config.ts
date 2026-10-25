@@ -18,7 +18,8 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 popup: fileURLToPath(new URL('./src/popup/index.html', import.meta.url)),
-                options: fileURLToPath(new URL('./src/options/index.html', import.meta.url))
+                options: fileURLToPath(new URL('./src/options/index.html', import.meta.url)),
+                sidepanel: fileURLToPath(new URL('./src/sidepanel/index.html', import.meta.url))
             }
         }
     }

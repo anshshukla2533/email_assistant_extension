@@ -7,7 +7,7 @@ interface Props {
 }
 
 export const FloatingComposeButton: React.FC<Props> = () => {
-    const { setSidebarOpen, sidebarOpen, setActiveTab } = useAssistantStore();
+    const { setActiveTab } = useAssistantStore();
 
     return (
         <button
@@ -16,7 +16,7 @@ export const FloatingComposeButton: React.FC<Props> = () => {
                 e.preventDefault();
                 e.stopPropagation();
                 setActiveTab('generate');
-                setSidebarOpen(!sidebarOpen);
+                chrome.runtime.sendMessage({ type: 'OPEN_EDGE_SIDE_PANEL' });
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-semibold shadow-md hover:shadow-lg hover:from-indigo-700 hover:to-violet-700 transition-all duration-200 cursor-pointer select-none"
             title="Open AI Assistant"

@@ -7,7 +7,8 @@
         "storage",
         "activeTab",
         "scripting",
-        "contextMenus"
+        "contextMenus",
+        "sidePanel"
     ],
     "host_permissions": [
         "https://mail.google.com/*",
@@ -40,8 +41,10 @@
         }
     },
     "action": {
-        "default_popup": "src/popup/index.html",
         "default_title": "AI Email Assistant"
+    },
+    "side_panel": {
+        "default_path": "src/sidepanel/index.html"
     },
     "options_ui": {
         "page": "src/options/index.html",

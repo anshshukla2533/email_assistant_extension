@@ -17,7 +17,12 @@ import {
 import { Tone, Language, EmailTemplate } from '../types';
 import { BUILTIN_TEMPLATES } from '../storage/chromeStorage';
 
-export const AssistantSidebar: React.FC = () => {
+interface AssistantSidebarProps {
+    /** Render inside Edge's native side panel rather than on top of Gmail. */
+    nativeSidePanel?: boolean;
+}
+
+export const AssistantSidebar: React.FC<AssistantSidebarProps> = ({ nativeSidePanel = false }) => {
     const {
         sidebarOpen, setSidebarOpen, activeTab, setActiveTab,
         metrics, missingAttachmentAlert, detectedType, actionItems,
@@ -36,7 +41,32 @@ export const AssistantSidebar: React.FC = () => {
     const [generatedSubjects, setGeneratedSubjects] = useState<string[]>([]);
     const [signatureRole, setSignatureRole] = useState<'Professional' | 'Minimal' | 'Corporate' | 'Student' | 'Developer'>('Professional');
 
-    if (!sidebarOpen) return null;
+    // In Edge's real side panel, Gmail's DOM belongs to a different document.
+    // Route only those DOM operations through the content script.
+    const gmail = <T,>(action: 'read' | 'replace' | 'subject' | 'thread', text?: string): Promise<T> => {
+        if (!nativeSidePanel) {
+            const local: Record<string, unknown> = {
+                read: readComposeBodyText(),
+                replace: text ? replaceEntireComposeBody(text) : false,
+                subject: text ? setComposeSubject(text) : false,
+                thread: extractThreadHistory()
+            };
+            return Promise.resolve(local[action] as T);
+        }
+        const requestId = crypto.randomUUID();
+        return new Promise<T>((resolve) => {
+            const listener = (message: any) => {
+                if (message?.type === 'GMAIL_DOM_RESULT' && message.requestId === requestId) {
+                    chrome.runtime.onMessage.removeListener(listener);
+                    resolve(message.result as T);
+                }
+            };
+            chrome.runtime.onMessage.addListener(listener);
+            chrome.runtime.sendMessage({ type: 'GMAIL_DOM_ACTION', requestId, action, text });
+        });
+    };
+
+    if (!nativeSidePanel && !sidebarOpen) return null;
 
     const handleGenerate = async () => {
         if (!prompt.trim()) return;
@@ -48,8 +78,8 @@ export const AssistantSidebar: React.FC = () => {
                 userPrompt: `Write an email according to the following instruction:\n"${prompt}"`
             });
 
-            const currentDraft = readComposeBodyText();
-            if (!replaceEntireComposeBody(response)) {
+            const currentDraft = await gmail<string>('read');
+            if (!await gmail<boolean>('replace', response)) {
                 throw new Error('No active Gmail compose window was found.');
             }
             pushUndo(currentDraft);
@@ -62,7 +92,7 @@ export const AssistantSidebar: React.FC = () => {
     };
 
     const handleToneShift = async (targetTone: Tone) => {
-        const current = readComposeBodyText() || resultText;
+            const current = await gmail<string>('read') || resultText;
         if (!current.trim()) {
             alert('Please write something in the email or generate draft text first.');
             return;
@@ -85,8 +115,8 @@ export const AssistantSidebar: React.FC = () => {
     const handleReplyGenerator = async (replyIntent: string) => {
         try {
             setLoading(true);
-            const thread = extractThreadHistory();
-            const currentDraft = readComposeBodyText();
+            const thread = await gmail<string[]>('thread');
+            const currentDraft = await gmail<string>('read');
             const context = thread.length > 0 ? thread.join('\n---\n') : currentDraft;
 
             if (!context.trim()) {
@@ -107,7 +137,7 @@ export const AssistantSidebar: React.FC = () => {
     };
 
     const handleGenerateSubjects = async () => {
-        const body = readComposeBodyText() || resultText;
+            const body = await gmail<string>('read') || resultText;
         if (!body.trim()) {
             alert('Please compose or generate an email body first to generate subjects.');
             return;
@@ -130,7 +160,7 @@ export const AssistantSidebar: React.FC = () => {
     };
 
     const handleFollowUpGenerator = async (timing: string) => {
-        const body = readComposeBodyText() || resultText;
+        const body = await gmail<string>('read') || resultText;
         try {
             setLoading(true);
             const response = await executeAIRequest({
@@ -146,8 +176,8 @@ export const AssistantSidebar: React.FC = () => {
     };
 
     const handleSummarize = async (mode: 'One sentence' | 'Three bullets' | 'Detailed Summary' | 'Key Action Items') => {
-        const thread = extractThreadHistory();
-        const activeText = thread.length > 0 ? thread.join('\n---\n') : readComposeBodyText();
+        const thread = await gmail<string[]>('thread');
+        const activeText = thread.length > 0 ? thread.join('\n---\n') : await gmail<string>('read');
         if (!activeText.trim()) {
             alert('No email thread content found to summarize.');
             return;
@@ -167,7 +197,7 @@ export const AssistantSidebar: React.FC = () => {
     };
 
     const handleFixGrammar = async () => {
-        const current = readComposeBodyText() || resultText;
+        const current = await gmail<string>('read') || resultText;
         if (!current.trim()) return;
         try {
             setLoading(true);
@@ -184,7 +214,7 @@ export const AssistantSidebar: React.FC = () => {
     };
 
     const handleHumanize = async () => {
-        const current = readComposeBodyText() || resultText;
+        const current = await gmail<string>('read') || resultText;
         if (!current.trim()) return;
         try {
             setLoading(true);
@@ -201,7 +231,7 @@ export const AssistantSidebar: React.FC = () => {
     };
 
     const handleTranslate = async (targetLang: Language) => {
-        const current = readComposeBodyText() || resultText;
+        const current = await gmail<string>('read') || resultText;
         if (!current.trim()) return;
         try {
             setLoading(true);
@@ -233,17 +263,17 @@ export const AssistantSidebar: React.FC = () => {
         }
     };
 
-    const handleInsert = () => {
+    const handleInsert = async () => {
         if (!resultText) return;
-        const current = readComposeBodyText();
+        const current = await gmail<string>('read');
         pushUndo(current);
-        replaceEntireComposeBody(resultText);
+        await gmail<boolean>('replace', resultText);
     };
 
-    const handleUndo = () => {
+    const handleUndo = async () => {
         const prev = popUndo();
         if (prev !== undefined) {
-            replaceEntireComposeBody(prev);
+            await gmail<boolean>('replace', prev);
             setResultText(prev);
         }
     };
@@ -262,11 +292,11 @@ export const AssistantSidebar: React.FC = () => {
 
     return (
         <motion.div
-            initial={{ x: 420, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 420, opacity: 0 }}
+            initial={nativeSidePanel ? false : { x: 420, opacity: 0 }}
+            animate={nativeSidePanel ? undefined : { x: 0, opacity: 1 }}
+            exit={nativeSidePanel ? undefined : { x: 420, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-            className="fixed top-0 right-0 h-screen w-[420px] bg-slate-900/95 text-slate-100 z-[999999] shadow-2xl backdrop-blur-xl border-l border-white/10 flex flex-col font-sans"
+            className={`${nativeSidePanel ? 'h-screen w-full' : 'fixed top-0 right-0 h-screen w-[420px] z-[999999] shadow-2xl border-l'} bg-slate-900/95 text-slate-100 backdrop-blur-xl border-white/10 flex flex-col font-sans`}
         >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-slate-950/40">
@@ -279,12 +309,12 @@ export const AssistantSidebar: React.FC = () => {
                         <span className="text-[11px] text-indigo-400 font-medium">Category: {detectedType}</span>
                     </div>
                 </div>
-                <button
+                {!nativeSidePanel && <button
                     onClick={() => setSidebarOpen(false)}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition"
                 >
                     <X className="w-5 h-5" />
-                </button>
+                </button>}
             </div>
 
             {/* Missing Attachment Alert Banner */}
@@ -586,7 +616,7 @@ export const AssistantSidebar: React.FC = () => {
                                     key={tpl.id}
                                     onClick={() => {
                                         setResultText(tpl.body);
-                                        setComposeSubject(tpl.subject);
+                                        void gmail<boolean>('subject', tpl.subject);
                                     }}
                                     className="p-3 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-white/5 cursor-pointer transition space-y-1"
                                 >
@@ -609,7 +639,7 @@ export const AssistantSidebar: React.FC = () => {
                             <div key={index} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-900/60 text-xs">
                                 <span className="truncate pr-2 text-slate-300">{subj}</span>
                                 <button
-                                    onClick={() => setComposeSubject(subj)}
+                                    onClick={() => void gmail<boolean>('subject', subj)}
                                     className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium shrink-0"
                                 >
                                     Use
