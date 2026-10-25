@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { crx } from '@crxjs/vite-plugin';
 import manifest from './manifest.json';
-import path from 'path';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
     plugins: [
@@ -11,14 +11,14 @@ export default defineConfig({
     ],
     resolve: {
         alias: {
-            '@': path.resolve(__dirname, './src')
+            '@': fileURLToPath(new URL('./src', import.meta.url))
         }
     },
     build: {
         rollupOptions: {
             input: {
-                popup: path.resolve(__dirname, 'src/popup/index.html'),
-                options: path.resolve(__dirname, 'src/options/index.html')
+                popup: fileURLToPath(new URL('./src/popup/index.html', import.meta.url)),
+                options: fileURLToPath(new URL('./src/options/index.html', import.meta.url))
             }
         }
     }

@@ -21,7 +21,6 @@ export const TextSelectionBubble: React.FC = () => {
                 userPrompt: prompt
             });
 
-            // Replace highlighted selection in DOM
             const selection = window.getSelection();
             if (selection && selection.rangeCount > 0) {
                 pushUndo(selectedText);
