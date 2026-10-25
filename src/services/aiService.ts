@@ -41,7 +41,9 @@ export async function executeAIRequest(options: RequestOptions): Promise<string>
                 throw new Error(error.error?.message || `OpenAI error: status ${response.status}`);
             }
             const data = await response.json();
-            return data.choices[0]?.message?.content?.trim() || '';
+            const content = data.choices[0]?.message?.content?.trim();
+            if (!content) throw new Error('OpenAI returned an empty response.');
+            return content;
         }
 
         case 'gemini': {
@@ -69,7 +71,9 @@ export async function executeAIRequest(options: RequestOptions): Promise<string>
                 throw new Error(err.error?.message || `Gemini API error: ${response.status}`);
             }
             const data = await response.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+            const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (!content) throw new Error('Gemini returned an empty response.');
+            return content;
         }
 
         case 'anthropic': {
@@ -95,7 +99,9 @@ export async function executeAIRequest(options: RequestOptions): Promise<string>
                 throw new Error(err.error?.message || `Anthropic API error: ${response.status}`);
             }
             const data = await response.json();
-            return data.content?.[0]?.text?.trim() || '';
+            const content = data.content?.[0]?.text?.trim();
+            if (!content) throw new Error('Anthropic returned an empty response.');
+            return content;
         }
 
         default:

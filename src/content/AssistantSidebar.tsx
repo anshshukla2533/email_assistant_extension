@@ -29,6 +29,7 @@ export const AssistantSidebar: React.FC = () => {
     const [lang, setLang] = useState<Language>('English');
     const [loading, setLoading] = useState(false);
     const [resultText, setResultText] = useState('');
+    const [generationError, setGenerationError] = useState('');
     const [copied, setCopied] = useState(false);
     const [templates] = useState<EmailTemplate[]>(BUILTIN_TEMPLATES);
     const [templateSearch, setTemplateSearch] = useState('');
@@ -40,6 +41,7 @@ export const AssistantSidebar: React.FC = () => {
     const handleGenerate = async () => {
         if (!prompt.trim()) return;
         try {
+            setGenerationError('');
             setLoading(true);
             const response = await executeAIRequest({
                 systemPrompt: `You are an elite executive assistant writing emails in ${tone} tone and ${lang} language. Return clean email body text without conversational filler.`,
@@ -53,7 +55,7 @@ export const AssistantSidebar: React.FC = () => {
             pushUndo(currentDraft);
             setResultText(response);
         } catch (e: any) {
-            alert(e.message || 'Generation failed');
+            setGenerationError(e.message || 'Generation failed.');
         } finally {
             setLoading(false);
         }
@@ -378,6 +380,11 @@ export const AssistantSidebar: React.FC = () => {
                             {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                             Generate Email
                         </button>
+                        {generationError && (
+                            <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                                {generationError}
+                            </p>
+                        )}
 
                         {/* Quick Actions Bar */}
                         <div className="pt-2 border-t border-white/10">
