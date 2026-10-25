@@ -45,6 +45,12 @@ export const AssistantSidebar: React.FC = () => {
                 systemPrompt: `You are an elite executive assistant writing emails in ${tone} tone and ${lang} language. Return clean email body text without conversational filler.`,
                 userPrompt: `Write an email according to the following instruction:\n"${prompt}"`
             });
+
+            const currentDraft = readComposeBodyText();
+            if (!replaceEntireComposeBody(response)) {
+                throw new Error('No active Gmail compose window was found.');
+            }
+            pushUndo(currentDraft);
             setResultText(response);
         } catch (e: any) {
             alert(e.message || 'Generation failed');
